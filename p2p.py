@@ -111,11 +111,11 @@ class P2P(object):
         if self.connected:
             raise Exception("Already connected to a peer.")
 
-        tracemsg("Connecting to peer {}.".format(peer.address))
+        self.tracemsg("Connecting to peer {}.".format(peer.address))
         self.connected = True
         socket = peer.connect()
         self.connected_peer = peer
-        tracemsg("Connected to peer {}.".format(peer.address))
+        self.tracemsg("Connected to peer {}.".format(peer.address))
 
         return socket
 
@@ -123,11 +123,11 @@ class P2P(object):
         if not self.connected:
             raise Exception("Not connected to a peer.")
 
-        tracemsg("Disconnecting")
+        self.tracemsg("Disconnecting")
         self.wpa_cli.disconnect()
         self.connected_peer = None
         self.connected = False
-        tracemsg("Disconnected")
+        self.tracemsg("Disconnected")
 
     def add_peers(self, peer_addresses):
         if peers == None:
@@ -143,7 +143,7 @@ class P2P(object):
 
                 # for now, we'll just auto provision.
                 peer.provision()
-                tracemsg("peer {} added".format(address))
+                self.tracemsg("peer {} added".format(address))
 
                 added += 1
 
@@ -154,19 +154,19 @@ class P2P(object):
         if self.discovery is not None:
             return
 
-        tracemsg("Starting discovery")
+        self.tracemsg("Starting discovery")
         self.discovery = PeerDiscovery(self)
         self.discovery.Start()
-        tracemsg("Discovery started")
+        self.tracemsg("Discovery started")
 
     def stop_discovery(self):
         if self.discovery is None:
             return
 
-        tracemsg("Stopping discovery")
+        self.tracemsg("Stopping discovery")
         self.discovery.stop()
         self.discovery = None
-        tracemsg("Discovery stopped")
+        self.tracemsg("Discovery stopped")
 
     def tracemsg(self, message):
         if self.trace:
