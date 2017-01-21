@@ -130,16 +130,16 @@ class P2P(object):
         self.tracemsg("Disconnected")
 
     def add_peers(self, peer_addresses):
-        if peers == None:
+        if peer_addresses is None:
             return
 
         added = 0
         self._peers_lock.acquire()
         for address in peer_addresses:
             # have we already found this peer?
-            if address not in peers:
-                peer = Peer(address)
-                peers[addresss] = peer
+            if address not in self.peers:
+                peer = Peer(self.wpa_cli, address)
+                self.peers[address] = peer
 
                 # for now, we'll just auto provision.
                 peer.provision()
@@ -156,7 +156,7 @@ class P2P(object):
 
         self.tracemsg("Starting discovery")
         self.discovery = PeerDiscovery(self)
-        self.discovery.Start()
+        self.discovery.start()
         self.tracemsg("Discovery started")
 
     def stop_discovery(self):
@@ -181,12 +181,12 @@ class PeerDiscovery(Thread):
 
     # support for 'with' keyword.
     def __enter__(self):
-        return self.Start()
+        return self.start()
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.Stop()
     
-    def Stop(self):
+    def stop(self):
         self.P2P.wpa_cli.stop_find()
         self.cancel = True
 
@@ -204,11 +204,11 @@ class PeerDiscovery(Thread):
                 return
 
             peers = self.P2P.wpa_cli.get_peers()
-            if peers is not None and length(peers) > 0:
+            if peers is not None and len(peers) > 0:
                 self.P2P.add_peers(peers)
 
             # sleep for a little bit while we wait for results.
-            time.sleep(this.polling_interval)
+            time.sleep(self.polling_interval)
 
 # ===========================
 # Utility methods
