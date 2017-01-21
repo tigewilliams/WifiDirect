@@ -90,32 +90,44 @@ class Peer(object):
 
     def connect(self):
         self.wpa_cli.connect_to_peer(self.address)
+        return None
 
 class P2P(object):
-    def __init__(self, iface):
+    def __init__(self, iface, trace = False):
         self.wpa_cli = WpaCli(iface)
         self.connected = False
         self.connected_peer = None
+        self.discovery = None
+        self.trace = trace
 
         # Peers dictionary
         self._peers_lock = Condition()
         self.peers = {}
 
+    def status(self):
+        self.wpa_cli.status()
+
     def connect(self, peer):
         if self.connected:
             raise Exception("Already connected to a peer.")
 
+        tracemsg("Connecting to peer {}.".format(peer.address))
         self.connected = True
-        peer.connect()
+        socket = peer.connect()
         self.connected_peer = peer
+        tracemsg("Connected to peer {}.".format(peer.address))
+
+        return socket
 
     def disconnect(self):
         if not self.connected:
             raise Exception("Not connected to a peer.")
 
+        tracemsg("Disconnecting")
         self.wpa_cli.disconnect()
         self.connected_peer = None
         self.connected = False
+        tracemsg("Disconnected")
 
     def add_peers(self, peer_addresses):
         if peers == None:
@@ -131,6 +143,7 @@ class P2P(object):
 
                 # for now, we'll just auto provision.
                 peer.provision()
+                tracemsg("peer {} added".format(address))
 
                 added += 1
 
@@ -138,10 +151,26 @@ class P2P(object):
         return added
 
     def start_discovery(self):
-        pass
+        if self.discovery is not None:
+            return
+
+        tracemsg("Starting discovery")
+        self.discovery = PeerDiscovery(self)
+        self.discovery.Start()
+        tracemsg("Discovery started")
 
     def stop_discovery(self):
-        pass
+        if self.discovery is None:
+            return
+
+        tracemsg("Stopping discovery")
+        self.discovery.stop()
+        self.discovery = None
+        tracemsg("Discovery stopped")
+
+    def tracemsg(self, message):
+        if self.trace:
+            print message
 
 class PeerDiscovery(Thread):
     def __init__(self, p2p, polling_interval = 1):
