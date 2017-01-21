@@ -1,79 +1,185 @@
 import subprocess
 import time
+from threading import Thread
+from threading import Condition
 
 class WpaCli(object):
-	def __init__(self, iface):
-		self.iface = iface
+    """
+    Wraps the wpa_cli command line interface.
+    """
 
-	def cmd(self, command):
-		cmd_str = "sudo wpa_cli -i {} {}".format(self.iface, command)
-		p = subprocess.Popen(cmd_str, stdout=subprocess.PIPE, shell=True)
-		stdout = p.communicate()[0]
-		return stdout
+    # Some constants
+    OK = "OK\n"
+ 
+    def __init__(self, iface):
+        """
+        iface: string
+            Wifi interface to connect wpa_cli to.  Generally this is wlan0 or wlan1
+        """
+        self.iface = iface
 
-class Peer(WpaCli):
-	def __init__(self, iface, address):
-		super(Peer, self).__init__(iface)
-		self.address = address
-		self.info = {}
+        # currently only supporting Push Button Connect 
+        self.authentication_type = "pbc"
 
-	def update_info(self):
-		info_string = self.cmd("p2p_peer " + self.address)
-		self.info = get_status_table(info_string)
-		
-	def provision_discovery(self):
-		prov_string = "p2p_prov_disc {} pbc".format(self.address)
-		self.cmd(prov_string)
+    def cmd(self, command):
+        """
+        Issues a command to wpa_cli.  Mostly for internal use.  Use the convience functions instead for most operations.
+        """
+        cmd_str = "sudo wpa_cli -i {} {}".format(self.iface, command)
+        p = subprocess.Popen(cmd_str, stdout=subprocess.PIPE, shell=True)
+        stdout = p.communicate()[0]
+        return stdout
 
-class P2P(WpaCli):
-	OK = "OK\n"
+    def start_find(self):
+        find_status = self.cmd("p2p_find")
+        if find_status != WpaCli.OK:
+            raise Exception("Error starting WIFI P2P Find process.  Status: " + find_status)
 
-	def __init__(self, iface):
-		super(P2P, self).__init__(iface)
-		self.connected = False
-		self.connected_peer = None
+    def stop_find(self):
+        self.cmd("p2p_stop_find")
 
-	def find_peers(self, duration):
-		find_status = self.cmd("p2p_find")
-		if find_status != P2P.OK:
-			raise Exception("Error starting WIFI P2P Find process.  Status: " + find_status)
+    def get_peers(self):
+        peers = []
+        address_list = self.cmd("p2p_peers")
+        if address_list:
+            addresses = address_list.split()
+            for addr in addresses:
+                p = Peer(self.iface, addr)
+                peers.append(p)
 
-		peers = []
-		for i in range(1, duration):
-			# sleep for a second to let P2P Find do its thing
-			time.sleep(1)
+        return peers
 
-			address_list = self.cmd("p2p_peers")
-			if address_list:
-				addresses = address_list.split()
-				for addr in addresses:
-					p = Peer(self.iface, addr)
-					p.provision_discovery()
-					peers.append(p)
-		
-		self.cmd("p2p_stop_find")
-		return peers
+    def get_peer_info(self, address):
+        """
+        Gets information about a peer.
 
-	def connect(self, peer):
-		if self.connected:
-			raise Exception("Already connected to a peer.")
+        address: string
+            MAC address of the peer.
+        """
+        self.cmd("p2p_peer " + address)
 
-		connect_str = "p2p_connect {} pbc persistent go_intent=0".format(peer.address)
-		self.cmd(connect_str)
-		self.connected_peer = peer
-		self.connected = True
-	
-	def disconnect(self):
-		if not self.connected:
-			raise Exception("Not connected to a peer.")
-		
-		result = self.cmd("disconnect")
-		self.connected_peer = None
-		self.connected = False
+    def provision_discovery(self, address):
+        """
+        Provisions discovery of the peer.
+        """
+        prov_string = "p2p_prov_disc {} {}".format(address, self.authentication_type)
+        self.cmd(prov_string)
 
-	def status(self):
-		status = self.cmd("status")
-		return get_status_table(status)
+    def connect_to_peer(self, address):
+        self.cmd("p2p_connect {} {} persistent go_intent=0".format(address, self.authentication_type))
+
+    def disconnect(self):
+        self.cmd("disconnect")
+
+    def status(self):
+        status = self.cmd("status")
+        return get_status_table(status)
+
+class Peer(object):
+    def __init__(self, wpa_cli, address):
+        self.wpa_cli = wpa_cli
+        self.address = address
+        self.info = {}
+
+    def update_info(self):
+        info_string = self.wpa_cli.get_peer_info(self.address)
+        self.info = get_status_table(info_string)
+
+    def provision(self):
+        self.wpa_cli.provision_discovery(self.address);
+
+    def connect(self):
+        self.wpa_cli.connect_to_peer(self.address)
+
+class P2P(object):
+    def __init__(self, iface):
+        self.wpa_cli = WpaCli(iface)
+        self.connected = False
+        self.connected_peer = None
+
+        # Peers dictionary
+        self._peers_lock = Condition()
+        self.peers = {}
+
+    def connect(self, peer):
+        if self.connected:
+            raise Exception("Already connected to a peer.")
+
+        self.connected = True
+        peer.connect()
+        self.connected_peer = peer
+
+    def disconnect(self):
+        if not self.connected:
+            raise Exception("Not connected to a peer.")
+
+        self.wpa_cli.disconnect()
+        self.connected_peer = None
+        self.connected = False
+
+    def add_peers(self, peer_addresses):
+        if peers == None:
+            return
+
+        added = 0
+        self._peers_lock.acquire()
+        for address in peer_addresses:
+            # have we already found this peer?
+            if address not in peers:
+                peer = Peer(address)
+                peers[addresss] = peer
+
+                # for now, we'll just auto provision.
+                peer.provision()
+
+                added += 1
+
+        self._peers_lock.release()
+        return added
+
+    def start_discovery(self):
+        pass
+
+    def stop_discovery(self):
+        pass
+
+class PeerDiscovery(Thread):
+    def __init__(self, p2p, polling_interval = 1):
+        super(PeerDiscovery, self).__init__()
+        self.P2P = p2p
+        self.cancel = False
+        self.polling_interval = polling_interval
+
+    # support for 'with' keyword.
+    def __enter__(self):
+        return self.Start()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.Stop()
+    
+    def Stop(self):
+        self.P2P.wpa_cli.stop_find()
+        self.cancel = True
+
+    def run(self):
+        # if we were cancelled before we started, just exit out
+        if self.cancel:
+            return
+
+        # issue the wpa command to start looking for peers.
+        self.P2P.wpa_cli.start_find()
+
+        # enter into the main loop.  This will run until we're cancelled.
+        while True:
+            if self.cancel:
+                return
+
+            peers = self.P2P.wpa_cli.get_peers()
+            if peers is not None and length(peers) > 0:
+                self.P2P.add_peers(peers)
+
+            # sleep for a little bit while we wait for results.
+            time.sleep(this.polling_interval)
 
 # ===========================
 # Utility methods
