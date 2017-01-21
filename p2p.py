@@ -187,7 +187,7 @@ class PeerDiscovery(Thread):
         self.P2P = p2p
         self.cancel = False
         self.polling_interval = polling_interval
-	self.trace = trace
+        self.trace = trace
 
     # support for 'with' keyword.
     def __enter__(self):
@@ -202,30 +202,36 @@ class PeerDiscovery(Thread):
         self.cancel = True
 
     def run(self):
-        self.tracemsg("starting")
+        try:
+            self.tracemsg("starting")
 
-        # if we were cancelled before we started, just exit out
-        if self.cancel:
-            self.tracemsg("cancelled")
-            return
-
-        # issue the wpa command to start looking for peers.
-        self.P2P.wpa_cli.start_find()
-
-        # enter into the main loop.  This will run until we're cancelled.
-        while True:
+            # if we were cancelled before we started, just exit out
             if self.cancel:
                 self.tracemsg("cancelled")
                 return
 
-            peers = self.P2P.wpa_cli.get_peers()
-            if peers is not None and len(peers) > 0:
-                self.tracemsg("peers found.")
-                self.P2P.add_peers(peers)
+            # issue the wpa command to start looking for peers.
+            self.P2P.wpa_cli.start_find()
 
-            # sleep for a little bit while we wait for results.
-            self.tracemsg("sleeping.")
-            time.sleep(self.polling_interval)
+            # enter into the main loop.  This will run until we're cancelled.
+            while True:
+                if self.cancel:
+                    self.tracemsg("cancelled")
+                    return
+
+                peers = self.P2P.wpa_cli.get_peers()
+                if peers is not None and len(peers) > 0:
+                    self.tracemsg("peers found.")
+                    self.P2P.add_peers(peers)
+
+                # sleep for a little bit while we wait for results.
+                self.tracemsg("sleeping.")
+                time.sleep(self.polling_interval)
+
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            self.stop()
+            return
 
     def tracemsg(self, message):
         if self.trace:
