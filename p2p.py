@@ -187,6 +187,7 @@ class PeerDiscovery(Thread):
         self.P2P = p2p
         self.cancel = False
         self.polling_interval = polling_interval
+	self.trace = trace
 
     # support for 'with' keyword.
     def __enter__(self):
