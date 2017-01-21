@@ -10,6 +10,7 @@ class WpaCli(object):
 
     # Some constants
     OK = "OK\n"
+    TraceCalls = False
  
     def __init__(self, iface):
         """
@@ -26,6 +27,9 @@ class WpaCli(object):
         Issues a command to wpa_cli.  Mostly for internal use.  Use the convience functions instead for most operations.
         """
         cmd_str = "sudo wpa_cli -i {} {}".format(self.iface, command)
+        if WpaCli.TraceCalls:
+            print " ** WPA Command: " + cmd_str
+
         p = subprocess.Popen(cmd_str, stdout=subprocess.PIPE, shell=True)
         stdout = p.communicate()[0]
         return stdout
