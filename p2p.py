@@ -81,6 +81,9 @@ class Peer(object):
         self.address = address
         self.info = {}
 
+    def __str__(self):
+        return self.address
+
     def update_info(self):
         info_string = self.wpa_cli.get_peer_info(self.address)
         self.info = get_status_table(info_string)
@@ -208,7 +211,7 @@ class PeerDiscovery(Thread):
                 self.P2P.add_peers(peers)
 
             # sleep for a little bit while we wait for results.
-            time.sleep(this.polling_interval)
+            time.sleep(self.polling_interval)
 
 # ===========================
 # Utility methods
