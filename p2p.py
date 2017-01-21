@@ -105,7 +105,7 @@ class P2P(object):
         self.peers = {}
 
     def status(self):
-        self.wpa_cli.status()
+        return self.wpa_cli.status()
 
     def connect(self, peer):
         if self.connected:
