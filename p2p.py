@@ -164,7 +164,7 @@ class P2P(object):
             return
 
         self.tracemsg("Starting discovery")
-        self.discovery = PeerDiscovery(self)
+        self.discovery = PeerDiscovery(self, trace = self.trace)
         self.discovery.start()
         self.tracemsg("Discovery started")
 
@@ -179,10 +179,10 @@ class P2P(object):
 
     def tracemsg(self, message):
         if self.trace:
-            print message
+            print "[P2P] {}".format(message)
 
 class PeerDiscovery(Thread):
-    def __init__(self, p2p, polling_interval = 1):
+    def __init__(self, p2p, polling_interval = 1, trace = False):
         super(PeerDiscovery, self).__init__()
         self.P2P = p2p
         self.cancel = False
@@ -196,12 +196,16 @@ class PeerDiscovery(Thread):
         self.Stop()
     
     def stop(self):
+        self.tracemsg("stopping")
         self.P2P.wpa_cli.stop_find()
         self.cancel = True
 
     def run(self):
+        self.tracemsg("starting")
+
         # if we were cancelled before we started, just exit out
         if self.cancel:
+            self.tracemsg("cancelled")
             return
 
         # issue the wpa command to start looking for peers.
@@ -210,14 +214,21 @@ class PeerDiscovery(Thread):
         # enter into the main loop.  This will run until we're cancelled.
         while True:
             if self.cancel:
+                self.tracemsg("cancelled")
                 return
 
             peers = self.P2P.wpa_cli.get_peers()
             if peers is not None and len(peers) > 0:
+                self.tracemsg("peers found.")
                 self.P2P.add_peers(peers)
 
             # sleep for a little bit while we wait for results.
+            self.tracemsg("sleeping.")
             time.sleep(self.polling_interval)
+
+    def tracemsg(self, message):
+        if self.trace:
+            print "[PeerDiscovery] {}".format(message)
 
 # ===========================
 # Utility methods
