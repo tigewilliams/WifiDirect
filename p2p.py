@@ -141,12 +141,14 @@ class P2P(object):
         for address in peer_addresses:
             # have we already found this peer?
             if address not in self.peers:
+                self.tracemsg("Peer found: {}".format(address))
                 peer = Peer(self.wpa_cli, address)
                 self.peers[address] = peer
+                self.tracemsg("peer {} added".format(peer))
 
                 # for now, we'll just auto provision.
                 peer.provision()
-                self.tracemsg("peer {} added".format(address))
+                self.tracemsg("peer {} provisioned".format(peer))
 
                 added += 1
 
